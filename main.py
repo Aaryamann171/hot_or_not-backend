@@ -4,6 +4,11 @@ from pydantic import BaseModel
 import random
 import sqlite3
 import base64
+import math
+
+
+def get_probability(rating_1, rating_2):
+    return 1.0 * 1.0 / (1 + 1.0 * math.pow(10, 1.0 * (rating_1 - rating_2) / 400))
 
 
 app = FastAPI()
@@ -58,24 +63,53 @@ class UpdateImageScore(BaseModel):
     image_id_2: int
     image_score_1: float
     image_score_2: float
+    winner_flag: int
 
 
 @app.post("/api/update_scores")
 async def update_scores(data: UpdateImageScore):
+    """
+    sample JSON payload
+    winner flag : 1 when Image 1 wins else 0
+
+    {
+    "image_id_1": 1,
+    "image_id_2": 2,
+    "image_score_1": 1000,
+    "image_score_2": 1200,
+    "winner_flag": 1
+    }
+
+    """
     conn = sqlite3.connect("my_images.db")
     cursor = conn.cursor()
+
+    # To calculate the Winning Probability of Image 1
+    probab_image_1 = get_probability(data.image_score_1, data.image_score_2)
+
+    # To calculate the Winning Probability of Image 2
+    probab_image_2 = get_probability(data.image_score_2, data.image_score_1)
+
+    K = 32
+
+    if (data.winner_flag == 1):
+        image_1_new_score = data.image_score_1 + K * (1 - probab_image_1)
+        image_2_new_score = data.image_score_2 + K * (0 - probab_image_2)
+    else:
+        image_1_new_score = data.image_score_1 + K * (0 - probab_image_1)
+        image_2_new_score = data.image_score_2 + K * (1 - probab_image_2)
 
     # update score for image 1
     cursor.execute(
         "UPDATE images SET score = ? WHERE id = ?",
-        (data.image_score_1, data.image_id_1)
+        (round(image_1_new_score, 2), data.image_id_1)
     )
     conn.commit()
 
     # update score for image 2
     cursor.execute(
         "UPDATE images SET score = ? WHERE id = ?",
-        (data.image_score_2, data.image_id_2)
+        (round(image_2_new_score, 2), data.image_id_2)
     )
     conn.commit()
 
