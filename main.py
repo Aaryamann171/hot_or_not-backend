@@ -17,7 +17,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
     allow_credentials=True,
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
@@ -33,24 +33,26 @@ async def get_image_set():
         random_num_2 = random.randint(1, total_count)
 
     cursor_img_1 = conn.execute(
-        "SELECT image_name, image_data, score FROM images WHERE id = ?", (random_num_1,))
-    image_1_name, image_1_data, image_1_score = cursor_img_1.fetchone()
+        "SELECT id, image_name, image_data, score FROM images WHERE id = ?", (random_num_1,))
+    image_1_id, image_1_name, image_1_data, image_1_score = cursor_img_1.fetchone()
     image_1_data_base64 = base64.b64encode(image_1_data).decode("utf-8")
 
     cursor_img_2 = conn.execute(
-        "SELECT image_name, image_data, score FROM images WHERE id = ?", (random_num_2,))
-    image_2_name, image_2_data, image_2_score = cursor_img_2.fetchone()
+        "SELECT id, image_name, image_data, score FROM images WHERE id = ?", (random_num_2,))
+    image_2_id, image_2_name, image_2_data, image_2_score = cursor_img_2.fetchone()
     image_2_data_base64 = base64.b64encode(image_2_data).decode("utf-8")
 
     conn.close()
 
     return {
         "image_1": {
+            "id": image_1_id,
             "name": image_1_name,
             "image_data": image_1_data_base64,
             "score": image_1_score
         },
         "image_2": {
+            "id": image_2_id,
             "name": image_2_name,
             "image_data": image_2_data_base64,
             "score": image_2_score
@@ -116,3 +118,17 @@ async def update_scores(data: UpdateImageScore):
     conn.close()
 
     return {"message": "Scores updated successfully"}
+
+
+@app.get("/api/top_scorers")
+async def get_top_scorers():
+    conn = sqlite3.connect("my_images.db")
+    cursor = conn.execute(
+        "SELECT image_name, image_data, score FROM images ORDER BY score DESC limit 10")
+    top_scorers = cursor.fetchall()
+    res = []
+    for top_scorer in top_scorers:
+        image_name, image_data, image_score = top_scorer
+        image_data_base64 = base64.b64encode(image_data).decode("utf-8")
+        res.append((image_name, image_data_base64, image_score))
+    return {"res": res}
